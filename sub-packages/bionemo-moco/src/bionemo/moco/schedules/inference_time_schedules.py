@@ -278,7 +278,7 @@ class PowerInferenceSchedule(ContinuousInferenceSchedule):
         min_t: Float = 0,
         padding: Float = 0,
         dilation: Float = 0,
-        p1: Float = 1.0,
+        exponent: Float = 1.0,
         direction: Union[TimeDirection, str] = TimeDirection.UNIFIED,
         device: Union[str, torch.device] = "cpu",
     ):
@@ -289,12 +289,12 @@ class PowerInferenceSchedule(ContinuousInferenceSchedule):
             min_t (Float): minimum time value defaults to 0.
             padding (Float): padding time value defaults to 0.
             dilation (Float): dilation time value defaults to 0 ie the number of replicates.
-            p1 (Float): Power parameter defaults to 1.0.
+            exponent (Float): Power parameter defaults to 1.0.
             direction (Optional[str]): TimeDirection to synchronize the schedule with. If the schedule is defined with a different direction, this parameter allows to flip the direction to match the specified one (default is None).
             device (Optional[str]): Device to place the schedule on (default is "cpu").
         """
         super().__init__(nsteps, min_t, padding, dilation, direction, device)
-        self.p1 = p1
+        self.exponent = exponent
 
     def generate_schedule(
         self,
@@ -323,7 +323,7 @@ class PowerInferenceSchedule(ContinuousInferenceSchedule):
             nsteps = int(nsteps / dilation)
         if nsteps is None:
             raise ValueError("nsteps cannot be None")
-        schedule = torch.linspace(0, 1, nsteps + 1).to(device=device) ** self.p1
+        schedule = torch.linspace(0, 1, nsteps + 1).to(device=device) ** self.exponent
         if self.min_t > 0:
             schedule = torch.clamp(schedule, min=self.min_t)
         schedule = schedule[:-1]
@@ -345,27 +345,43 @@ class LogInferenceSchedule(ContinuousInferenceSchedule):
         min_t: Float = 0,
         padding: Float = 0,
         dilation: Float = 0,
-        p1: Float = 2,
+        exponent: Float = -2.0,
         direction: Union[TimeDirection, str] = TimeDirection.UNIFIED,
         device: Union[str, torch.device] = "cpu",
     ):
         """Initialize the LogInferenceSchedule.
+
+        Returns a log space time schedule.
+
+        Which for 100 steps with default parameters is:
+            tensor([0.0000, 0.0455, 0.0889, 0.1303, 0.1699, 0.2077, 0.2439, 0.2783, 0.3113,
+                    0.3427, 0.3728, 0.4015, 0.4288, 0.4550, 0.4800, 0.5039, 0.5266, 0.5484,
+                    0.5692, 0.5890, 0.6080, 0.6261, 0.6434, 0.6599, 0.6756, 0.6907, 0.7051,
+                    0.7188, 0.7319, 0.7444, 0.7564, 0.7678, 0.7787, 0.7891, 0.7991, 0.8086,
+                    0.8176, 0.8263, 0.8346, 0.8425, 0.8500, 0.8572, 0.8641, 0.8707, 0.8769,
+                    0.8829, 0.8887, 0.8941, 0.8993, 0.9043, 0.9091, 0.9136, 0.9180, 0.9221,
+                    0.9261, 0.9299, 0.9335, 0.9369, 0.9402, 0.9434, 0.9464, 0.9492, 0.9520,
+                    0.9546, 0.9571, 0.9595, 0.9618, 0.9639, 0.9660, 0.9680, 0.9699, 0.9717,
+                    0.9734, 0.9751, 0.9767, 0.9782, 0.9796, 0.9810, 0.9823, 0.9835, 0.9847,
+                    0.9859, 0.9870, 0.9880, 0.9890, 0.9899, 0.9909, 0.9917, 0.9925, 0.9933,
+                    0.9941, 0.9948, 0.9955, 0.9962, 0.9968, 0.9974, 0.9980, 0.9985, 0.9990,
+                    0.9995])
 
         Args:
             nsteps (int): Number of time steps.
             min_t (Float): minimum time value defaults to 0.
             padding (Float): padding time value defaults to 0.
             dilation (Float): dilation time value defaults to 0 ie the number of replicates.
-            p1 (Float): log space parameter defaults to 2.0.
+            exponent (Float): log space exponent parameter defaults to -2.0. The lower number the more aggressive the acceleration of 0 to 0.9 will be thus having more steps from 0.9 to 1.0.
             direction (Optional[str]): TimeDirection to synchronize the schedule with. If the schedule is defined with a different direction, this parameter allows to flip the direction to match the specified one (default is None).
             device (Optional[str]): Device to place the schedule on (default is "cpu").
         """
         super().__init__(nsteps, min_t, padding, dilation, direction, device)
-        if p1 is None:
-            raise ValueError("p1 cannot be None for the log schedule")
-        if p1 <= 0:
-            raise ValueError(f"p1 must be >0 for the log schedule, got {p1}")
-        self.p1 = p1
+        if exponent is None:
+            raise ValueError("exponent cannot be None for the log schedule")
+        if exponent >= 0:
+            raise ValueError(f"exponent input must be <0, got {exponent}")
+        self.exponent = exponent
 
     def generate_schedule(
         self,
@@ -390,7 +406,7 @@ class LogInferenceSchedule(ContinuousInferenceSchedule):
             nsteps = int(nsteps / self.dilation)
         if nsteps is None:
             raise ValueError("nsteps cannot be None")
-        t = 1.0 - torch.logspace(-self.p1, 0, nsteps + 1).flip(0).to(device=device)
+        t = 1.0 - torch.logspace(self.exponent, 0, nsteps + 1).flip(0).to(device=device)
         t = t - torch.min(t)
         schedule = t / torch.max(t)
         if self.min_t > 0:
@@ -401,5 +417,5 @@ class LogInferenceSchedule(ContinuousInferenceSchedule):
         if self.padding > 0:
             schedule = torch.cat((schedule, torch.ones(self.padding, device=device)))
         if self.direction == TimeDirection.DIFFUSION:
-            schedule = 1 - schedule  # schedule.flip(0)
+            schedule = 1 - schedule
         return schedule

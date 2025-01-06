@@ -24,28 +24,45 @@ from bionemo.moco.distributions.prior.continuous.utils import remove_center_of_m
 from bionemo.moco.distributions.prior.distribution import PriorDistribution
 
 
-class GaussianPrior(PriorDistribution):
+class LinearHarmonicPrior(PriorDistribution):
     """A subclass representing a Gaussian prior distribution."""
 
     def __init__(
         self,
-        mean: Float = 0.0,
-        std: Float = 1.0,
+        distance: Float = 3.8,
+        length: Optional[int] = None,
         center: Bool = False,
         rng_generator: Optional[torch.Generator] = None,
+        device: Union[str, torch.device] = "cpu",
     ) -> None:
         """Gaussian prior distribution.
 
         Args:
-            mean (Float): The mean of the Gaussian distribution. Defaults to 0.0.
-            std (Float): The standard deviation of the Gaussian distribution. Defaults to 1.0.
+            distance (Float): RMS distance between adjacent points in the line graph.
+            length (Optional[int]): The number of points in a batch.
             center (bool): Whether to center the samples around the mean. Defaults to False.
             rng_generator: An optional :class:`torch.Generator` for reproducible sampling. Defaults to None.
+            device (Optional[str]): Device to place the schedule on (default is "cpu").
         """
-        self.mean = mean
-        self.std = std
+        self.distance = distance
+        self.length = length
         self.center = center
         self.rng_generator = rng_generator
+        self.device = device
+        if length:
+            self._calculate_terms(length, device)
+
+    def _calculate_terms(self, N, device):
+        a = 3 / (self.distance * self.distance)
+        J = torch.zeros(N, N)
+        for i, j in zip(torch.arange(N - 1), torch.arange(1, N)):
+            J[i, i] += a
+            J[j, j] += a
+            J[i, j] = J[j, i] = -a
+        D, P = torch.linalg.eigh(J)
+        D_inv = 1 / D
+        D_inv[0] = 0
+        self.P, self.D_inv = P.to(device), D_inv.to(device)
 
     def sample(
         self,
@@ -54,7 +71,7 @@ class GaussianPrior(PriorDistribution):
         device: Union[str, torch.device] = "cpu",
         rng_generator: Optional[torch.Generator] = None,
     ) -> Tensor:
-        """Generates a specified number of samples from the Gaussian prior distribution.
+        """Generates a specified number of samples from the Harmonic prior distribution.
 
         Args:
             shape (Tuple): The shape of the samples to generate.
@@ -65,16 +82,22 @@ class GaussianPrior(PriorDistribution):
         Returns:
             Float: A tensor of samples.
         """
+        if len(shape) != 3:
+            raise ValueError("Input shape can only work for B x L x D")
         if rng_generator is None:
             rng_generator = self.rng_generator
         samples = torch.randn(*shape, device=device, generator=rng_generator)
-        if self.std != 1:
-            samples = samples * self.std
-        if self.mean != 0:
-            samples = samples + self.mean
+        N = shape[1]
+
+        if N != self.length:
+            self._calculate_terms(N, device)
+
+        std = torch.sqrt(self.D_inv).unsqueeze(-1)
+        samples = self.P @ (std * samples)
 
         if self.center:
             samples = remove_center_of_mass(samples, mask)
+
         if mask is not None:
             samples = samples * mask.unsqueeze(-1)
         return samples

@@ -61,7 +61,7 @@ def test_power_dt(timesteps, device, power, direction):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA is not available")
 
-    scheduler = PowerInferenceSchedule(timesteps, p1=power, direction=direction)
+    scheduler = PowerInferenceSchedule(timesteps, exponent=power, direction=direction)
     dt = scheduler.discretize(device=device)
     schedule = scheduler.generate_schedule(device=device)
 
@@ -86,7 +86,7 @@ def test_log_dt(timesteps, device, direction):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA is not available")
 
-    scheduler = LogInferenceSchedule(timesteps, p1=2, direction=direction)
+    scheduler = LogInferenceSchedule(timesteps, exponent=-2, direction=direction)
     dt = scheduler.discretize(device=device)
     schedule = scheduler.generate_schedule(device=device)
 

@@ -7,6 +7,7 @@
 * [bionemo.moco.distributions.prior.discrete.custom](#mocodistributionspriordiscretecustom)
 * [bionemo.moco.distributions.prior.discrete](#mocodistributionspriordiscrete)
 * [bionemo.moco.distributions.prior.discrete.mask](#mocodistributionspriordiscretemask)
+* [bionemo.moco.distributions.prior.continuous.harmonic](#mocodistributionspriorcontinuousharmonic)
 * [bionemo.moco.distributions.prior.continuous](#mocodistributionspriorcontinuous)
 * [bionemo.moco.distributions.prior.continuous.gaussian](#mocodistributionspriorcontinuousgaussian)
 * [bionemo.moco.distributions.prior.continuous.utils](#mocodistributionspriorcontinuousutils)
@@ -360,6 +361,67 @@ Pads the input sample with zeros along the last dimension.
 **Returns**:
 
 - `Tensor` - The padded sample.
+
+<a id="mocodistributionspriorcontinuousharmonic"></a>
+
+# bionemo.moco.distributions.prior.continuous.harmonic
+
+<a id="mocodistributionspriorcontinuousharmonicLinearHarmonicPrior"></a>
+
+## LinearHarmonicPrior Objects
+
+```python
+class LinearHarmonicPrior(PriorDistribution)
+```
+
+A subclass representing a Gaussian prior distribution.
+
+<a id="mocodistributionspriorcontinuousharmonicLinearHarmonicPrior__init__"></a>
+
+#### \_\_init\_\_
+
+```python
+def __init__(distance: Float = 3.8,
+             length: Optional[int] = None,
+             center: Bool = False,
+             rng_generator: Optional[torch.Generator] = None,
+             device: Union[str, torch.device] = "cpu") -> None
+```
+
+Gaussian prior distribution.
+
+**Arguments**:
+
+- `distance` _Float_ - RMS distance between adjacent points in the line graph.
+- `length` _Optional[int]_ - The number of points in a batch.
+- `center` _bool_ - Whether to center the samples around the mean. Defaults to False.
+- `rng_generator` - An optional :class:`torch.Generator` for reproducible sampling. Defaults to None.
+- `device` _Optional[str]_ - Device to place the schedule on (default is "cpu").
+
+<a id="mocodistributionspriorcontinuousharmonicLinearHarmonicPriorsample"></a>
+
+#### sample
+
+```python
+def sample(shape: Tuple,
+           mask: Optional[Tensor] = None,
+           device: Union[str, torch.device] = "cpu",
+           rng_generator: Optional[torch.Generator] = None) -> Tensor
+```
+
+Generates a specified number of samples from the Harmonic prior distribution.
+
+**Arguments**:
+
+- `shape` _Tuple_ - The shape of the samples to generate.
+- `device` _str_ - cpu or gpu.
+- `mask` _Optional[Tensor]_ - An optional mask to apply to the samples. Defaults to None.
+- `rng_generator` - An optional :class:`torch.Generator` for reproducible sampling. Defaults to None.
+
+
+**Returns**:
+
+- `Float` - A tensor of samples.
 
 <a id="mocodistributionspriorcontinuous"></a>
 
@@ -1635,15 +1697,15 @@ Creates a tensor of shape (n_samples,) filled with a scalar time value.
 
 **Arguments**:
 
-  - n_samples (int): The desired dimension of the output tensor.
-  - scalar_time (Float): The scalar time value to fill the tensor with.
-  - device (Optional[Union[str, torch.device]], optional):
+- `n_samples` _int_ - The desired dimension of the output tensor.
+- `scalar_time` _Float_ - The scalar time value to fill the tensor with.
+  device (Optional[Union[str, torch.device]], optional):
   The device to place the tensor on. Defaults to None, which uses the default device.
 
 
 **Returns**:
 
-  - Tensor: A tensor of shape (n_samples,) filled with the scalar time value.
+- `Tensor` - A tensor of shape (n_samples,) filled with the scalar time value.
 
 <a id="mocoschedulesinference_time_schedulesContinuousInferenceSchedule"></a>
 
@@ -1842,7 +1904,7 @@ def __init__(nsteps: int,
              min_t: Float = 0,
              padding: Float = 0,
              dilation: Float = 0,
-             p1: Float = 1.0,
+             exponent: Float = 1.0,
              direction: Union[TimeDirection, str] = TimeDirection.UNIFIED,
              device: Union[str, torch.device] = "cpu")
 ```
@@ -1855,7 +1917,7 @@ Initialize the PowerInferenceSchedule.
 - `min_t` _Float_ - minimum time value defaults to 0.
 - `padding` _Float_ - padding time value defaults to 0.
 - `dilation` _Float_ - dilation time value defaults to 0 ie the number of replicates.
-- `p1` _Float_ - Power parameter defaults to 1.0.
+- `exponent` _Float_ - Power parameter defaults to 1.0.
 - `direction` _Optional[str]_ - TimeDirection to synchronize the schedule with. If the schedule is defined with a different direction, this parameter allows to flip the direction to match the specified one (default is None).
 - `device` _Optional[str]_ - Device to place the schedule on (default is "cpu").
 
@@ -1901,12 +1963,28 @@ def __init__(nsteps: int,
              min_t: Float = 0,
              padding: Float = 0,
              dilation: Float = 0,
-             p1: Float = 2,
+             exponent: Float = -2.0,
              direction: Union[TimeDirection, str] = TimeDirection.UNIFIED,
              device: Union[str, torch.device] = "cpu")
 ```
 
 Initialize the LogInferenceSchedule.
+
+Returns a log space time schedule.
+
+Which for 100 steps with default parameters is:
+tensor([0.0000, 0.0455, 0.0889, 0.1303, 0.1699, 0.2077, 0.2439, 0.2783, 0.3113,
+0.3427, 0.3728, 0.4015, 0.4288, 0.4550, 0.4800, 0.5039, 0.5266, 0.5484,
+0.5692, 0.5890, 0.6080, 0.6261, 0.6434, 0.6599, 0.6756, 0.6907, 0.7051,
+0.7188, 0.7319, 0.7444, 0.7564, 0.7678, 0.7787, 0.7891, 0.7991, 0.8086,
+0.8176, 0.8263, 0.8346, 0.8425, 0.8500, 0.8572, 0.8641, 0.8707, 0.8769,
+0.8829, 0.8887, 0.8941, 0.8993, 0.9043, 0.9091, 0.9136, 0.9180, 0.9221,
+0.9261, 0.9299, 0.9335, 0.9369, 0.9402, 0.9434, 0.9464, 0.9492, 0.9520,
+0.9546, 0.9571, 0.9595, 0.9618, 0.9639, 0.9660, 0.9680, 0.9699, 0.9717,
+0.9734, 0.9751, 0.9767, 0.9782, 0.9796, 0.9810, 0.9823, 0.9835, 0.9847,
+0.9859, 0.9870, 0.9880, 0.9890, 0.9899, 0.9909, 0.9917, 0.9925, 0.9933,
+0.9941, 0.9948, 0.9955, 0.9962, 0.9968, 0.9974, 0.9980, 0.9985, 0.9990,
+0.9995])
 
 **Arguments**:
 
@@ -1914,7 +1992,7 @@ Initialize the LogInferenceSchedule.
 - `min_t` _Float_ - minimum time value defaults to 0.
 - `padding` _Float_ - padding time value defaults to 0.
 - `dilation` _Float_ - dilation time value defaults to 0 ie the number of replicates.
-- `p1` _Float_ - log space parameter defaults to 2.0.
+- `exponent` _Float_ - log space exponent parameter defaults to -2.0. The lower number the more aggressive the acceleration of 0 to 0.9 will be thus having more steps from 0.9 to 1.0.
 - `direction` _Optional[str]_ - TimeDirection to synchronize the schedule with. If the schedule is defined with a different direction, this parameter allows to flip the direction to match the specified one (default is None).
 - `device` _Optional[str]_ - Device to place the schedule on (default is "cpu").
 
